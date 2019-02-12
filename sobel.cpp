@@ -83,8 +83,8 @@ int main(int argc, char *argv[])
 	FILE *file;
 	int BytesPerPixel;
 	int width, height;
-	int N;
-    int th;
+	int N = 3; // sobel mask size
+    float perc;
     int buf;
 	
 	// Check for proper syntax
@@ -107,18 +107,12 @@ int main(int argc, char *argv[])
 	if (argc < 6) height = 256;
 	else height = atoi(argv[5]);
 
-	// check if N for filtering is specified
-	if (argc < 7) N = 3;
-	else N = atoi(argv[6]);
+    if (argc < 7) perc = 0.5;
+    else perc = atof(argv[6]);
 
-    if (argc < 8) th = 128;
-    else th = atoi(argv[7]);
+    if (argc < 8) buf = 1;
+    else buf = atoi(argv[7]);
 
-    if (argc < 9) buf = 1;
-    else buf = atoi(argv[8]);
-
-	
-	
 	// Allocate source image data array
 	unsigned char sourceImageData[height][width][BytesPerPixel];
     // temp float array for normalization
@@ -136,6 +130,32 @@ int main(int argc, char *argv[])
 	fclose(file);
 
     // process image
+
+	// build sourceImageData histogram
+	int histogram[256] = {0};
+	for(int i=0; i < height; i++)
+	{
+		for(int j=0; j < width; j++)
+		{
+			histogram[sourceImageData[i][j][0]]++;
+		}
+	}
+	// build histogram cdf
+	for (int i = 0; i < 256; i++)
+	{
+		histogram[i] = histogram[i-1] + histogram[i];
+		//printf("histogram[%d] = %d\n", i, histogram[i]);
+	}
+	// find threshold based on %
+	int range = histogram[255] - histogram[0];
+	int h = 0;
+	int th = 0;
+	while(histogram[h] < perc*range)
+	{
+		th = h;
+		h++;
+	}
+	//printf("th = %d\n", th);
     float max = 0.0;
     float min = 0.0;
     for (int i = 0; i < height; i++)
@@ -155,8 +175,9 @@ int main(int argc, char *argv[])
         for (int j = 0; j < width; j++)
         {
             float normalized = ((preNormalized[i][j]/(max - min))*255.0);
-            if ((normalized < th + buf) && (normalized > th - buf)) destImageData[i][j][0] = (unsigned char)255;
-            else destImageData[i][j][0] = (unsigned char)0;
+            //if ((normalized < th + buf) && (normalized > th - buf)) destImageData[i][j][0] = (unsigned char)255;
+            if (normalized > th) destImageData[i][j][0] = (unsigned char)0;
+			else destImageData[i][j][0] = (unsigned char)255;
         }
     }
 
