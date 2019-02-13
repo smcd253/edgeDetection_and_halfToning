@@ -1,10 +1,3 @@
-// This sample code reads in image data from a RAW image file and 
-// writes it into another file
-
-// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
-//			RAW format. You will need to make corresponding changes to
-//			accommodate images of different widths and/or types
-
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>

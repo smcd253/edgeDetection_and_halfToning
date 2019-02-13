@@ -110,9 +110,6 @@ int main(int argc, char *argv[])
     if (argc < 7) perc = 0.5;
     else perc = atof(argv[6]);
 
-    if (argc < 8) buf = 1;
-    else buf = atoi(argv[7]);
-
 	// Allocate source image data array
 	unsigned char sourceImageData[height][width][BytesPerPixel];
     // temp float array for normalization

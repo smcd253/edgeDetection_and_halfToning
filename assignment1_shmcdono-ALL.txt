@@ -1,0 +1,1107 @@
+////////////////////////////////////////////////////////////////////canny.cpp///////////////////////////////////////////////////////////////////////////
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
+#include <stdlib.h>
+#include <stdio.h>
+
+using namespace cv;
+
+/// Global variables
+
+Mat src, src_gray;
+Mat dst, detected_edges;
+
+int edgeThresh = 1;
+int lowThreshold;
+int const max_lowThreshold = 100;
+int ratio = 3;
+int kernel_size = 3;
+char const* window_name = "Edge Map";
+
+/**
+ * @function CannyThreshold
+ * @brief Trackbar callback - Canny thresholds input with a ratio 1:3
+ */
+void CannyThreshold(int, void*)
+{
+  /// Reduce noise with a kernel 3x3
+  blur( src_gray, detected_edges, Size(3,3) );
+
+  /// Canny detector
+  Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
+
+  /// Using Canny's output as a mask, we display our result
+  dst = Scalar::all(0);
+
+  src.copyTo( dst, detected_edges);
+  imshow( window_name, dst );
+ }
+
+
+/** @function main */
+int main( int argc, char** argv )
+{
+  /// Load an image
+  src = imread( argv[1], IMREAD_COLOR );
+
+  if( !src.data )
+  { 
+    printf("no file or unreadable file. exit.\n");
+    return -1; 
+  }
+  // namedWindow( window_name, WINDOW_AUTOSIZE );
+  // imshow( window_name, src );
+  printf("1\n");
+  /// Create a matrix of the same type and size as src (for dst)
+  dst.create( src.size(), src.type() );
+  printf("2\n");
+  /// Convert the image to grayscale
+  cvtColor( src, src_gray, COLOR_BGR2GRAY );
+  printf("3\n");
+  /// Create a window
+  namedWindow( window_name, WINDOW_AUTOSIZE );
+  printf("4\n");
+
+  /// Create a Trackbar for user to enter threshold
+  createTrackbar( "Min Threshold:", window_name, &lowThreshold, max_lowThreshold, CannyThreshold );
+  printf("5\n");
+
+  /// Show the image
+  CannyThreshold(0, 0);
+  printf("6\n");
+
+  /// Wait until user exit program by pressing a key
+  waitKey(0);
+
+  return 0;
+  }
+
+////////////////////////////////////////////////////////////////////colorToGray.cpp///////////////////////////////////////////////////////////////////////////
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int N;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if width is specified
+	if (argc < 4) width = 256;
+	else width = atoi(argv[3]);
+
+	// check if height is specified
+	if (argc < 5) height = 256;
+	else height = atoi(argv[4]);
+	
+	
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][3];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+
+	// convert to grayscale
+    if (BytesPerPixel > 1)
+    {
+        for (int i = 0; i < height; i++)
+        {
+            for (int j = 0; j < width; j++)
+            {
+                destImageData[i][j][0] = (unsigned char)(
+                    0.25f * (float)sourceImageData[i][j][0] + 
+                    0.5f * (float)sourceImageData[i][j][1] + 
+                    0.25f * (float)sourceImageData[i][j][2]
+                );
+            }
+        }
+    }
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////dithering.cpp///////////////////////////////////////////////////////////////////////////
+// This sample code reads in image data from a RAW image file and 
+// writes it into another file
+
+// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
+//			RAW format. You will need to make corresponding changes to
+//			accommodate images of different widths and/or types
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+#define PI 3.14159265
+
+// index matrices
+float I2[2][2] =	{{0,2},
+					{3,1}};
+float I4[4][4] =	{{0,8,2,10},
+					{12,4,14,6},
+					{3,11,1,9},
+					{15,7,13,5}};
+float I8[8][8] =  	{{0,32,8,40,2,34,10,42},
+					{48,16,56,24,50,18,58,26},
+					{12,44,4,36,14,46,6,38},
+					{60,28,52,20,62,30,54,22},
+					{3,35,11,43,1,33,9,41},
+					{51,19,59,27,49,17,57,25},
+					{15,47,7,39,13,45,5,37},
+					{63,31,55,23,61,29,53,21}};
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int I;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+
+	// check if I for index matrix is specified
+	if (argc < 7) I = 2;
+	else I = atoi(argv[6]);
+	
+	
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	///////////////////////// INSERT YOUR PROCESSING CODE HERE /////////////////////////
+    
+	// build threshold matrix
+    unsigned char T[8][8] = {0};
+    for (int i = 0; i < I; i++)
+    {
+        for(int j = 0; j < I; j++)
+        {
+            switch(I)
+            {
+                case 2:
+                    T[i][j] = (int)(((I2[i][j] + 0.5) / (I*I)) * 255.0);
+                break;
+                case 4:
+                    T[i][j] = (int)(((I4[i][j] + 0.5) / (I*I)) * 255.0);
+                break;
+                case 8:
+                    T[i][j] = (int)(((I8[i][j] + 0.5) / (I*I)) * 255.0);
+                break;
+            }
+        }
+    }
+
+    // compare pixels to threshold matrix and half-tone accordingly
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+            for(int c = 0; c < BytesPerPixel; c++)
+            {
+                if(sourceImageData[i][j][c] > T[i % I][j % I]) destImageData[i][j][c] = 255;
+                else destImageData[i][j][c] = 0;
+            }
+		}
+	}
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////errorDiffusion.cpp///////////////////////////////////////////////////////////////////////////
+// This sample code reads in image data from a RAW image file and 
+// writes it into another file
+
+// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
+//			RAW format. You will need to make corresponding changes to
+//			accommodate images of different widths and/or types
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+// index matrices
+float FS[3][3] =	{{0,0,0},
+                    {0,0,7},
+                    {3,5,1}};
+float JJN[5][5] =	{{0,0,0,0,0},
+                    {0,0,0,0,0},
+                    {0,0,0,7,5},
+                    {3,5,7,5,3},
+                    {1,3,5,3,1}};
+float STU[5][5] =	{{0,0,0,0,0},
+                    {0,0,0,0,0},
+                    {0,0,0,8,4},
+                    {2,4,8,4,2},
+                    {1,2,4,2,1}};
+
+void diffuseErrorRight(int ***errorMatrix, int height, int width, int i, int j, int N, int select, int sub)
+{
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+            switch(select)
+            {
+                case 1:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (FS[nh][nw]/16.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+                case 2:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (JJN[nh][nw]/48.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+                case 3:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (STU[nh][nw]/42.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+            }
+        }    
+	}
+}
+void diffuseErrorLeft(int ***errorMatrix, int height, int width, int i, int j, int N, int select, int sub)
+{
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+            switch(select)
+            {
+                case 1:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (FS[nh][(N-1)/2 - nw]/16.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+                case 2:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (JJN[nh][(N-1)/2 - nw]/48.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+                case 3:
+			        *(((int *)errorMatrix + (i+nh)*width) + (j + nw)) += (STU[nh][(N-1)/2 - nw]/42.0) * (*(((int *)errorMatrix + (i)*width) + (j)) - sub);
+                break;
+            }
+        }    
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int select;
+    int th;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+
+	// check if I for index matrix is specified
+	if (argc < 7) select = 1;
+	else select = atoi(argv[6]);
+
+    // threshold
+    if (argc < 8) th = 127;
+	else th = atoi(argv[7]);
+	
+	
+    // int array to hold error diffusion data (2 rows and columns bigger to accomodate diffusion at edges)
+    int errDiff[height + 2][width + 2][BytesPerPixel];
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	///////////////////////// INSERT YOUR PROCESSING CODE HERE /////////////////////////
+    // change window size depending on the diff matrix we watnt to use
+    int N = 3;
+    switch(select)
+    {
+        case 2:
+            N = 5;
+        break;
+        case 3:
+            N = 5;
+        break;   
+    }
+    // compare pixels to threshold matrix and half-tone accordingly
+	for (int i = 0; i < height; i++)
+	{
+        if(i%2) // snake right
+        {
+            for (int j = 0; j < width; j++)
+            {
+                if(sourceImageData[i][j][0] + errDiff[i][j][0] > th)
+                {
+                    diffuseErrorRight((int ***)errDiff, height, width, i, j, N, select, 255);
+                    destImageData[i][j][0] = 255;   
+                }
+                else
+                {
+                    diffuseErrorRight((int ***)errDiff, height, width, i, j, N, select, 0);
+                    destImageData[i][j][0] = 0;   
+                }
+            }
+        }
+        else // snake left
+        {
+            for (int j = width - 1; j >= 0; j--)
+            {
+                if(sourceImageData[i][j][0] + errDiff[i][j][0] > th)
+                {
+                    diffuseErrorLeft((int ***)errDiff, height, width, i, j, N, select, 255);
+                    destImageData[i][j][0] = 255;   
+                }
+                else
+                {
+                    diffuseErrorLeft((int ***)errDiff, height, width, i, j, N, select, 0);
+                    destImageData[i][j][0] = 0;   
+                }
+            }
+        }
+	}
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////gaussianDenoise.cpp///////////////////////////////////////////////////////////////////////////
+// This sample code reads in image data from a RAW image file and 
+// writes it into another file
+
+// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
+//			RAW format. You will need to make corresponding changes to
+//			accommodate images of different widths and/or types
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+int reflectY(int height, int i, int nh)
+{
+	if(i + nh >= 0)
+	{
+		if (i + nh < height - 1)
+			return i + nh;
+		else
+			return i - nh;
+	}
+	else
+		return i - nh;
+}
+int reflectX(int width, int j, int nw)
+{
+	if(j + nw >= 0)
+	{
+		if (j + nw < width - 1)
+			return j + nw;
+		else
+			return j - nw;
+	}
+	else
+		return j - nw;
+}
+
+float findMean(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+{
+	float sum = 0;
+	// scan NXN square around source image pixel and find uniform average of all pixel values
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			sum += (float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw));
+		}
+	}
+	return sum / (float)(N*N);
+}
+float findVariance(unsigned char ***sourceImageData, int height, int width, int i, int j, int N, float mean)
+{
+	float squareDiff = 0;
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			float pixelVal = (float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw));
+			//printf("pixelVal = %f\n", pixelVal);
+			squareDiff += (pixelVal - mean) * (pixelVal - mean);
+		}
+	}
+	return squareDiff / (float)(N*N);
+}
+float gaussian(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+{
+	//printf("%f\n",(float)*(((unsigned char *)sourceImageData + (i)*width) + (j)));
+
+	// find mean of matrix
+	float mean = findMean((unsigned char ***)sourceImageData, height, width, i, j, N);
+	
+	// next find variance of the matrix
+	float variance = findVariance((unsigned char ***)sourceImageData, height, width, i, j, N, mean);
+	//calculate final output
+	float numerator = 0.0;
+	float denominator = 0.0;
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			float weight = (1.0/sqrtf(2*M_PI*variance))*expf(-(nw*nw + nh*nh)/(2*variance));
+			denominator += weight;
+			numerator += weight * (float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw));;
+		}
+	}
+	//float res = powf((1.0/N-1),2.0)*
+	//printf("res = %f\n", res);
+	return numerator/denominator;
+}
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int N;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+
+	// check if N for filtering is specified
+	if (argc < 7) N = 3;
+	else N = atoi(argv[6]);
+	
+	
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	///////////////////////// INSERT YOUR PROCESSING CODE HERE /////////////////////////
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			destImageData[i][j][0] = (unsigned char)gaussian((unsigned char ***)sourceImageData, height, width, i, j, N);
+		}
+	}
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////randomHalfTone.cpp///////////////////////////////////////////////////////////////////////////
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+// int reflectY(int height, int i, int nh)
+// {
+// 	if(i + nh >= 0)
+// 	{
+// 		if (i + nh < height - 1)
+// 			return i + nh;
+// 		else
+// 			return i - nh;
+// 	}
+// 	else
+// 		return i - nh;
+// }
+// int reflectX(int width, int j, int nw)
+// {
+// 	if(j + nw >= 0)
+// 	{
+// 		if (j + nw < width - 1)
+// 			return j + nw;
+// 		else
+// 			return j - nw;
+// 	}
+// 	else
+// 		return j - nw;
+// }
+
+// float histogram(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+// {
+// 	float numerator = (float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw));;
+// 	return numerator;
+// }
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int N;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+	
+	
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	///////////////////////// INSERT YOUR PROCESSING CODE HERE /////////////////////////
+	for(int i=0; i < height; i++)
+	{
+		for(int j=0; j < width; j++)
+		{
+			int randThresh = rand()%256;
+			if((int)sourceImageData[i][j][0] >= randThresh) destImageData[i][j][0] = 255;
+			else destImageData[i][j][0] = 0;
+		}
+	}
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
+////////////////////////////////////////////////////////////////////sepErrorDiffusion.cpp///////////////////////////////////////////////////////////////////////////
+
+// This sample code reads in image data from a RAW image file and 
+// writes it into another file
+
+// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
+//			RAW format. You will need to make corresponding changes to
+//			accommodate images of different widths and/or types
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+// index matrices
+float FS[3][3] =	{{0,0,0},
+                    {0,0,7},
+                    {3,5,1}};
+
+
+void diffuseErrorRight(int ***errorMatrix, int height, int width, int i, int j, int c, int N, int sub)
+{
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			*((((int *)errorMatrix + c*height*width) + (i+nh)*width) + (j + nw)) += (FS[nh][nw]/16.0) * (*((((int *)errorMatrix + c*height*width) + i*width) + j) - sub);
+        }    
+	}
+    if(i == 0)
+        printf("(%d,%d,%d)\n", i, j, c);
+}
+void diffuseErrorLeft(int ***errorMatrix, int height, int width, int i, int j, int c, int N, int sub)
+{
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+        	*((((int *)errorMatrix + c*height*width) + (i+nh)*width) + (j + nw)) += (FS[nh][(N-1)/2 - nw]/16.0) * (*((((int *)errorMatrix + c*height*width) + i*width) + j) - sub);
+        }    
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int select;
+    int th = 127;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+	
+	
+    // int array to hold error diffusion data (2 rows and columns bigger to accomodate diffusion at edges)
+    int errDiff[height + 2][width + 2][BytesPerPixel];
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	///////////////////////// INSERT YOUR PROCESSING CODE HERE /////////////////////////
+    int N = 3;
+
+    // compare pixels to threshold matrix and half-tone accordingly
+	for (int i = 0; i < height; i++)
+	{
+        if(i%2) // snake right
+        {
+            for (int j = 0; j < width; j++)
+            {
+                for (int c = 0; c < BytesPerPixel; c++)
+                {
+                    if(sourceImageData[i][j][c] + errDiff[i][j][c] > th)
+                    {
+                        // diffuseErrorRight((int ***)errDiff, height, width, i, j, c, N, 255);
+                        for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+                        {
+                            for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+                            {
+                                errDiff[i + nh][j + nw][c] += (int)(FS[nh][nw]/16.0 * ((float)errDiff[i][j][c] - 255.0));
+                            }    
+                        }
+                        destImageData[i][j][c] = 255;   
+                    }
+                    else
+                    {
+                        //diffuseErrorRight((int ***)errDiff, height, width, i, j, c, N, 0);
+                        for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+                        {
+                            for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+                            {
+                                errDiff[i + nh][j + nw][c] += (int)(FS[nh][nw]/16.0 * (float)errDiff[i][j][c]);
+                            }    
+                        }
+                        destImageData[i][j][c] = 0;   
+                    }
+                } 
+            }
+        }
+        else // snake left
+        {
+            for (int j = width - 1; j >= 0; j--)
+            {
+                for (int c = 0; c < BytesPerPixel; c++)
+                {
+                    if(sourceImageData[i][j][c] + errDiff[i][j][c] > th)
+                    {
+                        // diffuseErrorLeft((int ***)errDiff, height, width, i, j, c, N, 255);
+                        for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+                        {
+                            for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+                            {
+                                errDiff[i + nh][j + nw][c] += (int)(FS[nh][(N-1)/2 - nw]/16.0 * ((float)errDiff[i][j][c] - 255.0));
+                            }    
+                        }
+                        destImageData[i][j][c] = 255;   
+                    }
+                    else
+                    {
+                        //diffuseErrorLeft((int ***)errDiff, height, width, i, j, c, N, 0);
+                        for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+                        {
+                            for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+                            {
+                                errDiff[i + nh][j + nw][c] += (int)(FS[nh][(N-1)/2 - nw]/16.0 * (float)errDiff[i][j][c]);
+                            }    
+                        }
+                        destImageData[i][j][c] = 0;   
+                    }
+                } 
+            }
+        }
+	}
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////sobel.cpp///////////////////////////////////////////////////////////////////////////
+
+// This sample code reads in image data from a RAW image file and 
+// writes it into another file
+
+// NOTE:	The code assumes that the image is of width 256 x 256 and is in the
+//			RAW format. You will need to make corresponding changes to
+//			accommodate images of different widths and/or types
+
+#include <stdio.h>
+#include <iostream>
+#include <stdlib.h>
+#include <math.h>
+
+using namespace std;
+
+float xKernel[3][3] = {{-1.0, 0.0, 1.0},
+                    {-2.0, 0.0, 2.0},
+                    {-1.0, 0.0, 1.0}};
+float yKernel[3][3] = {{1.0, 2.0, 1.0},
+                    {0.0, 0.0, 0.0},
+                    {-1.0, -2.0, -1.0}};
+
+int reflectY(int height, int i, int nh)
+{
+	if(i + nh >= 0)
+	{
+		if (i + nh < height - 1)
+			return i + nh;
+		else
+			return i - nh;
+	}
+	else
+		return i - nh;
+}
+int reflectX(int width, int j, int nw)
+{
+	if(j + nw >= 0)
+	{
+		if (j + nw < width - 1)
+			return j + nw;
+		else
+			return j - nw;
+	}
+	else
+		return j - nw;
+}
+
+float xDiff(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+{
+	float sum = 0;
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			sum += ((float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw))) * xKernel[nh][nw];
+		}
+	}
+	return sum;
+}
+float yDiff(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+{
+	float sum = 0;
+	for (int nh = -(N-1)/2; nh <= (N-1)/2; nh++)
+	{
+		for (int nw = -(N-1)/2; nw <= (N-1)/2; nw++)
+		{
+			sum += ((float)*(((unsigned char *)sourceImageData + reflectY(height, i, nh)*width) + reflectX(width, j, nw))) * yKernel[nh][nw];
+		}
+	}
+	return sum;
+}
+
+float sobel(unsigned char ***sourceImageData, int height, int width, int i, int j, int N)
+{
+    float yGrad = yDiff((unsigned char ***)sourceImageData, height, width, i, j, N);
+    float xGrad = xDiff((unsigned char ***)sourceImageData, height, width, i, j, N);
+
+    return sqrtf(xGrad * xGrad + yGrad * yGrad);
+}
+
+int main(int argc, char *argv[])
+{
+	// Define file pointer and variables
+	FILE *file;
+	int BytesPerPixel;
+	int width, height;
+	int N = 3; // sobel mask size
+    float perc;
+    int buf;
+	
+	// Check for proper syntax
+	if (argc < 3)
+	{
+		cout << "Syntax Error - Incorrect Parameter Usage:" << endl;
+		cout << "program_name input_image.raw output_image.raw [BytesPerPixel = 1] [width = 256] [height = 256] [BytesPerPixelOut = 1]" << endl;
+		return 0;
+	}
+	
+	// Check if image is grayscale or color
+	if (argc < 4) BytesPerPixel = 1; // default is grey image
+	else BytesPerPixel = atoi(argv[3]);
+
+	// Check if width is specified
+	if (argc < 5) width = 256;
+	else width = atoi(argv[4]);
+
+	// check if height is specified
+	if (argc < 6) height = 256;
+	else height = atoi(argv[5]);
+
+    if (argc < 7) perc = 0.5;
+    else perc = atof(argv[6]);
+
+	// Allocate source image data array
+	unsigned char sourceImageData[height][width][BytesPerPixel];
+    // temp float array for normalization
+    float preNormalized[height][width];
+	// Allocate dest image data array
+	unsigned char destImageData[height][width][1];
+
+	// Read image (filename specified by first argument) into image data matrix
+	if (!(file=fopen(argv[1],"rb"))) 
+	{
+		cout << "Cannot open file: " << argv[1] <<endl;
+		exit(1);
+	}
+	fread(sourceImageData, sizeof(unsigned char), height*width*BytesPerPixel, file);
+	fclose(file);
+
+    // process image
+
+	// build sourceImageData histogram
+	int histogram[256] = {0};
+	for(int i=0; i < height; i++)
+	{
+		for(int j=0; j < width; j++)
+		{
+			histogram[sourceImageData[i][j][0]]++;
+		}
+	}
+	// build histogram cdf
+	for (int i = 0; i < 256; i++)
+	{
+		histogram[i] = histogram[i-1] + histogram[i];
+		//printf("histogram[%d] = %d\n", i, histogram[i]);
+	}
+	// find threshold based on %
+	int range = histogram[255] - histogram[0];
+	int h = 0;
+	int th = 0;
+	while(histogram[h] < perc*range)
+	{
+		th = h;
+		h++;
+	}
+	//printf("th = %d\n", th);
+    float max = 0.0;
+    float min = 0.0;
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            float pVal = sobel((unsigned char ***)sourceImageData, height, width, i, j, N);
+            if(pVal > max)
+                max = pVal;
+            if(pVal < min)
+                min = pVal;
+            preNormalized[i][j] = pVal;
+        }
+    }
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            float normalized = ((preNormalized[i][j]/(max - min))*255.0);
+            //if ((normalized < th + buf) && (normalized > th - buf)) destImageData[i][j][0] = (unsigned char)255;
+            if (normalized > th) destImageData[i][j][0] = (unsigned char)0;
+			else destImageData[i][j][0] = (unsigned char)255;
+        }
+    }
+
+	// Write image data (filename specified by second argument) from image data matrix
+	if (!(file=fopen(argv[2],"wb"))) 
+	{
+		cout << "Cannot open file: " << argv[2] << endl;
+		exit(1);
+	}
+
+	fwrite(destImageData, sizeof(unsigned char), height*width, file);
+	fclose(file);
+
+	return 0;
+}
