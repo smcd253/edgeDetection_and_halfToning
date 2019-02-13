@@ -15,7 +15,7 @@ int lowThreshold;
 int const max_lowThreshold = 100;
 int ratio = 3;
 int kernel_size = 3;
-char* window_name = "Edge Map";
+char const* window_name = "Edge Map";
 
 /**
  * @function CannyThreshold
@@ -41,25 +41,33 @@ void CannyThreshold(int, void*)
 int main( int argc, char** argv )
 {
   /// Load an image
-  src = imread( argv[1] );
+  src = imread( argv[1], IMREAD_COLOR );
 
   if( !src.data )
-  { return -1; }
-
+  { 
+    printf("no file or unreadable file. exit.\n");
+    return -1; 
+  }
+  // namedWindow( window_name, WINDOW_AUTOSIZE );
+  // imshow( window_name, src );
+  printf("1\n");
   /// Create a matrix of the same type and size as src (for dst)
   dst.create( src.size(), src.type() );
-
+  printf("2\n");
   /// Convert the image to grayscale
-  cvtColor( src, src_gray, CV_BGR2GRAY );
-
+  cvtColor( src, src_gray, COLOR_BGR2GRAY );
+  printf("3\n");
   /// Create a window
-  namedWindow( window_name, CV_WINDOW_AUTOSIZE );
+  namedWindow( window_name, WINDOW_AUTOSIZE );
+  printf("4\n");
 
   /// Create a Trackbar for user to enter threshold
   createTrackbar( "Min Threshold:", window_name, &lowThreshold, max_lowThreshold, CannyThreshold );
+  printf("5\n");
 
   /// Show the image
   CannyThreshold(0, 0);
+  printf("6\n");
 
   /// Wait until user exit program by pressing a key
   waitKey(0);

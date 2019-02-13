@@ -18,7 +18,10 @@
 
 # references
 dithering matrix: https://www.youtube.com/watch?v=K7RCH5yyVVE
-jeff: https://github.com/J-pcy/Digital-Image-Processing
+
+***DELETE: https://github.com/J-pcy/Digital-Image-Processing ***
+
+opencv canny edge detector: https://docs.opencv.org/2.4/doc/tutorials/imgproc/imgtrans/canny_detector/canny_detector.html
 
 # Compile and Execution Instructions
 
@@ -31,4 +34,5 @@ $ ./gaussianDenoise HW2_images/tigerGray.raw HW2_images/tigerDenoise.raw 1 481 3
 $ ./sobel HW2_images/tigerDenoise.raw HW2_images/sobelTiger.raw 1 481 321 3 128 20
 
 Problem 1.b)
-$ g++ -g -Wall -I/opt/local/include/ canny.cpp -o canny
+OSX: $ g++ -g -Wall -I/opt/local/include/ canny.cpp -o canny
+ubuntu: g++ -g -Wall -I/usr/local/include/opencv4 canny.cpp -o canny
