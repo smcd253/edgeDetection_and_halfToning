@@ -18,6 +18,7 @@
 
 # references
 dithering matrix: https://www.youtube.com/watch?v=K7RCH5yyVVE
+jeff: https://github.com/J-pcy/Digital-Image-Processing
 
 # Compile and Execution Instructions
 
